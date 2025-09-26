@@ -1,145 +1,178 @@
-// using Microsoft.EntityFrameworkCore;
-// using Microsoft.Extensions.Configuration;
-// using Newtonsoft.Json;
-// using SCIMetricAPI.Data;
-// using SCIMetricAPI.Models;
-// using SCIMetricAPI.Services;
-// using SCIMetricAPI.Services.Interfaces;
-// using System.Net;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
+using SCIMetricAPI.Data;
+using SCIMetricAPI.Models;
+using SCIMetricAPI.Services.Interfaces;
 
-// public class SciCloudCalculator : ISciCloudCalculator
-// {
-//     private readonly ApplicationDbContext _context;
-//     private readonly IHttpClientFactory _httpClientFactory;
-//     private readonly IConfiguration _configuration;
-//     private readonly ITdpService _tdpService;
+public class SciCloudCalculatorService : ISciCloudCalculatorService
+{
+    private readonly ApplicationDbContext _context;
+    private readonly IBoaviztaRepository _boaviztaRepo;
+    private readonly ITdpCoefficientRepository _tdpCoeffRepo;
+    private readonly ITdpDataRepository _tdpDataRepo;
+    private readonly IConfiguration _configuration;
 
-//     public SciCloudCalculator(ApplicationDbContext context, IHttpClientFactory httpClientFactory, IConfiguration configuration, ITdpService tdpService)
-//     {
-//         _context = context;
-//         _httpClientFactory = httpClientFactory;
-//         _configuration = configuration;
-//         _tdpService = tdpService;
-//     }
+    public SciCloudCalculatorService(
+        ApplicationDbContext context,
+        IBoaviztaRepository boaviztaRepo,
+        ITdpCoefficientRepository tdpCoeffRepo,
+        ITdpDataRepository tdpDataRepo,
+        IConfiguration configuration)
+    {
+        _context = context;
+        _boaviztaRepo = boaviztaRepo;
+        _tdpCoeffRepo = tdpCoeffRepo;
+        _tdpDataRepo = tdpDataRepo;
+        _configuration = configuration;
+    }
 
-//     public async Task<object> CalculateSCIAsync(SCIRequest request)
-//     {
-//         if (request == null || request.Instances == null || !request.Instances.Any())
-//             throw new ArgumentException("Invalid or missing instance data.");
+    public async Task<SCIResponse> CalculateCloudSCI(SCIRequest request)
+    {
+        if (request?.Instances == null || !request.Instances.Any())
+            throw new ArgumentException("Invalid or missing instance data.");
 
-//         decimal totalE = 0, totalM = 0, totalO = 0;
-//         double dur = 0;
-//         string workloadValuestr = _configuration.GetSection("WorkloadSizes")[request.WorkloadSize];
-//         decimal functionalUnit = string.IsNullOrEmpty(workloadValuestr) || !decimal.TryParse(workloadValuestr, out var parsedUnit)
-//             ? 1 : parsedUnit;
+        decimal totalE = 0, totalM = 0, totalO = 0;
+        double duration = request.Instances.First().Duration;
+        int instancecount = request.Instances.Count;
+        Console.WriteLine($"instance count:{instancecount}");
 
-//         var provider = await _context.CloudProviders.FirstOrDefaultAsync(p => p.Id == request.CloudProvider)
-//             ?? throw new Exception($"CloudProviderId {request.CloudProvider} not found.");
+        string workloadValuestr = _configuration.GetSection("WorkloadSizes")[request.WorkloadSize];
+        Console.WriteLine($"workload: {workloadValuestr}");
 
-//         string providerName = provider.Name.ToLower();
-//         double gridemm = 0;
-//         var instanceResults = new List<object>();
+        decimal functionalUnit = 1;
+        if (!string.IsNullOrEmpty(workloadValuestr) && decimal.TryParse(workloadValuestr, out var parsedFU))
+            functionalUnit = parsedFU;
 
-//         foreach (var instanceInput in request.Instances)
-//         {
-//             var instance = await _context.InstanceTypes.FindAsync(instanceInput.InstanceTypeId)
-//                 ?? throw new Exception($"InstanceTypeId {instanceInput.InstanceTypeId} not found.");
+        var instanceIds = request.Instances.Select(i => i.InstanceTypeId).Distinct();
+        var regionIds = request.Instances.Select(i => i.RegionId).Distinct();
 
-//             var gridEmission = await _context.GridEmissions.FindAsync(instanceInput.RegionId)
-//                 ?? throw new Exception($"RegionId {instanceInput.RegionId} not found.");
+        var instances = await _context.InstanceTypes
+            .AsNoTracking()
+            .Where(i => instanceIds.Contains(i.Id))
+            .ToDictionaryAsync(i => i.Id);
 
-//             double I = gridEmission.CO2e;
-//             gridemm = I;
-//             double cpuCores = instance.CPUCoresAvailable;
-//             double tdp = instance.TDP;
-//             double memoryAvailable = instance.MemoryAvailable;
-//             double durationSeconds = instanceInput.Duration * 3600;
-//             dur = instanceInput.Duration;
+        var gridEmissions = await _context.GridEmissions
+            .AsNoTracking()
+            .Where(g => regionIds.Contains(g.Id))
+            .ToDictionaryAsync(g => g.Id);
 
-//             double tdpCoeff = _tdpService.GetTdpCoefficient(instanceInput.CPUUtilization);
-//             decimal cpuEnergy = (decimal)(tdp * tdpCoeff);
-//             decimal Pcpu = (cpuEnergy * (decimal)durationSeconds) / 3600000;
+        var provider = await _context.CloudProviders
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == request.CloudProvider);
 
-//             double memoryUsed = string.Equals(instanceInput.memoryUnit, "percentage", StringComparison.OrdinalIgnoreCase)
-//                 ? (memoryAvailable * (instanceInput.memoryUtilization / 100))
-//                 : instanceInput.memoryUtilization / 1024;
+        if (provider == null)
+            throw new Exception($"CloudProviderId {request.CloudProvider} not found.");
 
-//             decimal Pmemory = (decimal)(memoryUsed * 0.000392 * instanceInput.Duration);
-//             decimal storageVolumeGB = (decimal)instanceInput.StorageVolumeGB;
-//             decimal durationDecimal = (decimal)instanceInput.Duration;
+        string providerName = provider.Name.ToLower();
+        double gridemm = 0;
+        int instanceIndex = 1;
+        var instanceResults = new List<object>();
 
-//             decimal Pstorage = instance.storagetype.ToLower() switch
-//             {
-//                 "hdd" => storageVolumeGB * 0.00000065m * durationDecimal,
-//                 "ssd" => storageVolumeGB * 0.0000012m * durationDecimal,
-//                 _ => storageVolumeGB * 0.00000085m * durationDecimal
-//             };
+        foreach (var instanceInput in request.Instances)
+        {
+            var instance = instances[instanceInput.InstanceTypeId];
+            var gridEmission = gridEmissions[instanceInput.RegionId];
+            double I = gridEmission.CO2e;
+            gridemm = I;
 
-//             decimal Pall = Pcpu + Pmemory + Pstorage;
-//             double vcpu_utilized = cpuCores / instanceInput.CPUCoresAllocated;
-//             decimal vcpu_ratio = (decimal)(vcpu_utilized / cpuCores);
-//             decimal E = Pall * vcpu_ratio;
-//             decimal O = E * (decimal)I;
+            Console.WriteLine($"Calculating SCI for instance {instanceIndex} (InstanceTypeId: {instanceInput.InstanceTypeId}, RegionId: {instanceInput.RegionId})");
 
-//             decimal TE = 105;
-//             if (providerName == "azure" && !string.IsNullOrWhiteSpace(instance.Mid))
-//                 TE = (decimal)await GetBoaviztaEmbeddedEmission(instance.Mid, providerName);
-//             else
-//                 TE = (decimal)await GetBoaviztaEmbeddedEmission(instance.InstanceClass, providerName);
+            string storageinfo = instance.storagetype;
+            double cpuCores = instance.CPUCoresAvailable;
+            double tdp = instance.TDP;
+            double memoryAvailable = instance.MemoryAvailable;
 
-//             decimal M = TE * 1000 * ((decimal)(instanceInput.Duration * 3600) / (6 * 365 * 24 * 3600)) * vcpu_ratio;
-//             decimal instanceSCI = (O + M) / (functionalUnit * (decimal)instanceInput.Duration);
+            double tdpCoeff = _tdpCoeffRepo.GetTdpCoefficient(instanceInput.CPUUtilization);
+            Console.WriteLine($"tdp:{tdp}, cpuCores:{cpuCores}, memoryAvailable:{memoryAvailable}, I:{I}, tdpCoeff:{tdpCoeff} ");
 
-//             instanceResults.Add(new
-//             {
-//                 InstanceTypeId = instanceInput.InstanceTypeId,
-//                 InstanceTypeName = instance.InstanceClass,
-//                 RegionId = instanceInput.RegionId,
-//                 RegionName = gridEmission.Region,
-//                 CPUUtilization = instanceInput.CPUUtilization,
-//                 MemoryUtilization = instanceInput.memoryUtilization,
-//                 Duration = instanceInput.Duration,
-//                 OperationalEnergy = E,
-//                 OperationalEmissions = O,
-//                 EmbodiedEmissions = M,
-//                 SCI = instanceSCI
-//             });
+            decimal cpuEnergy = (decimal)(tdp * tdpCoeff);
+            Console.WriteLine($"cpuEnergy for instance {instanceIndex}: {cpuEnergy}");
 
-//             totalE += E;
-//             totalM += M;
-//             totalO += O;
-//         }
+            decimal Pcpu = cpuEnergy * (decimal)(instanceInput.Duration * 3600) / 3600000;
+            Console.WriteLine($"Pcpu for instance {instanceIndex}: {Pcpu}");
 
-//         decimal SCI = (totalO + totalM) / (functionalUnit * (decimal)dur);
-//         return new
-//         {
-//             duration = dur,
-//             TotalOperationalEnergy = totalE,
-//             TotalOperationalEmissions = totalO,
-//             TotalEmbodiedEmissions = totalM,
-//             GridEmissionFactorUsed = gridemm,
-//             SCI = SCI,
-//             InstanceResults = instanceResults
-//         };
-//     }
+            Console.WriteLine($"Memorytype:{instanceInput.memoryUnit}");
+            double memoryUsed = instanceInput.memoryUnit.ToLower() == "percent"
+                ? memoryAvailable * (instanceInput.memoryUtilization / 100)
+                : instanceInput.memoryUtilization / 1000;
 
-//     private async Task<double> GetBoaviztaEmbeddedEmission(string instanceType, string provider)
-//     {
-//         try
-//         {
-//             var client = _httpClientFactory.CreateClient();
-//             var url = $"https://api.boavizta.org/v1/cloud/instance?provider={provider}&instance_type={instanceType.ToLower()}&verbose=false&criteria=gwp";
-//             var response = await client.GetAsync(url);
-//             if (!response.IsSuccessStatusCode) return 10;
+            Console.WriteLine($"converted Memoryused :{memoryUsed} GB from {(instanceInput.memoryUnit.ToLower() == "percent" ? "percentage" : "MB")}");
 
-//             var content = await response.Content.ReadAsStringAsync();
-//             dynamic data = JsonConvert.DeserializeObject(content);
-//             double? te = data?.impacts?.gwp?.embedded?.value;
-//             return (te == null || te == 0) ? 10 : te.Value;
-//         }
-//         catch
-//         {
-//             return 10;
-//         }
-//     }
-// }
+            decimal Pmemory = (decimal)(memoryUsed * 0.000392 * instanceInput.Duration);
+            decimal storageVolumeGB = (decimal)instanceInput.StorageVolumeGB;
+            decimal durationDecimal = (decimal)instanceInput.Duration;
+
+            decimal Pstorage = storageVolumeGB * durationDecimal *
+                (storageinfo.ToLower() switch
+                {
+                    "hdd" => 0.00000065m,
+                    "ssd" => 0.0000012m,
+                    _ => 0.000000925m
+                });
+
+            decimal Pall = Pcpu + Pmemory + Pstorage;
+            Console.WriteLine($"storageVolumeGB:{storageVolumeGB}, durationDecimal:{durationDecimal}, Pcpu:{Pcpu}, cpuEnergy:{cpuEnergy}, Pmemory:{Pmemory}, Pstorage:{Pstorage:F10}, Pall:{Pall}");
+
+            double vcpu_utilized = cpuCores / instanceInput.CPUCoresAllocated;
+            Console.WriteLine($"Vcpu utilized:{vcpu_utilized}");
+
+            decimal vcpu_ratio = (decimal)(vcpu_utilized / cpuCores);
+            decimal E = Pall * vcpu_ratio;
+            Console.WriteLine($"E for instance {instanceIndex}:{E}, vcpu_ratio:{vcpu_ratio}");
+
+            decimal O = E * (decimal)I;
+            Console.WriteLine($"O for instance {instanceIndex}:{O}");
+
+            decimal TE = providerName == "azure" && !string.IsNullOrWhiteSpace(instance.Mid)
+                ? (decimal)await _boaviztaRepo.GetCloudEmbeddedEmissions(providerName, instance.Mid)
+                : (decimal)await _boaviztaRepo.GetCloudEmbeddedEmissions(providerName, instance.InstanceClass);
+
+            Console.WriteLine($"TE for instance {instanceIndex} ={TE}");
+
+            decimal M = TE * 1000 * ((decimal)(instanceInput.Duration * 3600) / (6 * 365 * 24 * 3600)) * vcpu_ratio;
+            Console.WriteLine($"M for instance {instanceIndex}={M}");
+
+            decimal instanceSCI = (O + M) / (functionalUnit * (decimal)instanceInput.Duration);
+
+            instanceResults.Add(new
+            {
+                tier = instanceInput.tier,
+                InstanceTypeId = instanceInput.InstanceTypeId,
+                InstanceTypeName = instance.InstanceClass,
+                RegionId = instanceInput.RegionId,
+                RegionName = gridEmission.Region,
+                instanceInput.CPUUtilization,
+                instanceInput.memoryUtilization,
+                instanceInput.Duration,
+                OperationalEnergy = E,
+                OperationalEmissions = O,
+                EmbodiedEmissions = M,
+                SCI = instanceSCI
+            });
+
+            totalE += E;
+            totalM += M;
+            totalO += O;
+
+            Console.WriteLine($"calculating values upto instance {instanceIndex} :Total E:{totalE}  TotalM: {totalM}  TotalO {totalO}");
+            instanceIndex++;
+        }
+
+        decimal SCI = (totalO + totalM) / (functionalUnit * (decimal)duration);
+
+        var response = new SCIResponse
+        {
+            Duration = duration,
+            TotalOperationalEnergy = totalE,
+            TotalOperationalEmissions = totalO,
+            TotalEmbodiedEmissions = totalM,
+            GridEmissionFactorUsed = gridemm,
+            SCI = SCI,
+            InstanceResults = instanceResults
+        };
+
+       // Console.WriteLine($"SCI Result: {JsonConvert.SerializeObject(response)}");
+        return response;
+    }
+}

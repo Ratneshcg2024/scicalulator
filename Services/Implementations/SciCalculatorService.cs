@@ -88,7 +88,7 @@ namespace SCIMetricAPI.Services
             decimal TE;
             try
             {
-                TE = _boaviztaRepository.GetEmbeddedEmissionsAsync(spec).Result;
+                TE = _boaviztaRepository.GetServerEmbeddedEmissions(spec).Result;
             }
             catch
             {

@@ -17,6 +17,6 @@ public class GridEmissionController : ControllerBase
     [HttpGet("{providerId}")]
     public async Task<ActionResult<IEnumerable<GridEmission>>> GetEmissionsByProvider(int providerId)
     {
-        return await _context.GridEmissions.Where(g => g.ProviderId == providerId).ToListAsync();
+        return await _context.GridEmissions.AsNoTracking().Where(g => g.ProviderId == providerId).ToListAsync();
     }
 }

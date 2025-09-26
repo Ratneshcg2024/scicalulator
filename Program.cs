@@ -20,10 +20,10 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Register the  repository
 builder.Services.AddScoped<IBoaviztaRepository, BoaviztaRepository>();
 builder.Services.AddScoped<IGridEmissionRepository, GridEmissionRepository>();
-builder.Services.AddScoped<IProcessMetricsService, ProcessMetricsService>();
 builder.Services.AddScoped<ITdpCoefficientRepository, TdpCoefficientRepository>();
 builder.Services.AddScoped<ISciCalculatorService, SciCalculatorService>();
 builder.Services.AddScoped<ITdpDataRepository, TdpDataRepository>();
+builder.Services.AddScoped<ISciCloudCalculatorService,SciCloudCalculatorService >();
 
 builder.Services.AddCors(options =>
 {

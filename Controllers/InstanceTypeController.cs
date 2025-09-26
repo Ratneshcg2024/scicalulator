@@ -17,7 +17,7 @@ public class InstanceTypeController : ControllerBase
      [HttpGet("{cloudProviderId}")]
     public async Task<ActionResult<IEnumerable<InstanceType>>> GetInstancesByProvider(int cloudProviderId)
     {
-        return await _context.InstanceTypes.Where(i => i.CloudProviderId == cloudProviderId).ToListAsync();
+        return await _context.InstanceTypes.AsNoTracking().Where(i => i.CloudProviderId == cloudProviderId).ToListAsync();
     }
 
      [HttpGet("cpucores/{id}")]

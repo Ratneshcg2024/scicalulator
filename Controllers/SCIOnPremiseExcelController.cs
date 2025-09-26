@@ -44,57 +44,37 @@ namespace SCIMetricAPI.Controllers
             return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "SCI_Results.xlsx");
         }
 
-       // uplaod multiple processors
-        // [HttpPost("upload-multi-app")]
-        // public async Task<IActionResult> UploadMultiAppExcel(IFormFile file)
-        // {
-        //     if (file == null || file.Length == 0)
-        //         return BadRequest("Invalid file.");
-
-        //     using var stream = file.OpenReadStream();
-        //     var models = ExcelReader.ReadExcel(stream);
-
-        //     var results = models.Select(model => _sciCalculatorService.CalculateSCI(model)).ToList();
-
-        //     var excelBytes = ExcelReader.WriteResultsToExcel(models, results);
-
-        //     return File(excelBytes, 
-        //                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-        //                 "SCI_Results_MultiApp.xlsx");
-        // }
         [HttpPost("upload-multi-app")]
-public async Task<IActionResult> UploadMultiAppExcel(IFormFile file)
-{
-    if (file == null || file.Length == 0)
-        return BadRequest("Invalid file.");
+        public async Task<IActionResult> UploadMultiAppExcel(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest("Invalid file.");
 
-    using var stream = file.OpenReadStream();
-    var models = ExcelReader.ReadExcel(stream);
+            using var stream = file.OpenReadStream();
+            var models = ExcelReader.ReadExcel(stream);
 
-    var results = models.Select(model => _sciCalculatorService.CalculateSCI(model)).ToList();
+            var results = models.Select(model => _sciCalculatorService.CalculateSCI(model)).ToList();
 
-    var excelBytes = ExcelReader.WriteResultsToExcel(models, results);
+            var excelBytes = ExcelReader.WriteResultsToExcel(models, results);
 
-    // Ensure the directory exists
-    var folderPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "files");
-    if (!Directory.Exists(folderPath))
-        Directory.CreateDirectory(folderPath);
+                    // Ensure the directory exists
+                    var folderPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "files");
+            //var folderPath = Path.Combine(Environment.CurrentDirectory, "files");
 
-    // Save the file
-    var fileName = $"SCI_Results_{DateTime.Now:yyyyMMddHHmmss}.xlsx";
-    var filePath = Path.Combine(folderPath, fileName);
-    await System.IO.File.WriteAllBytesAsync(filePath, excelBytes);
+            if (!Directory.Exists(folderPath))
+                        Directory.CreateDirectory(folderPath);
 
-    // Build the public URL
-    var fileUrl = $"{Request.Scheme}://{Request.Host}/files/{fileName}";
-    Console.WriteLine($"Saved Excel file at: {filePath}");
-    Console.WriteLine($"Accessible via: {fileUrl}");
+            // Save the file
+            var fileName = $"SCI_Results_{DateTime.Now:yyyyMMddHHmmss}.xlsx";
+            var filePath = Path.Combine(folderPath, fileName);
+            await System.IO.File.WriteAllBytesAsync(filePath, excelBytes);
 
+            // Build the public URL
+            var fileUrl = $"{Request.Scheme}://{Request.Host}/files/{fileName}";
+            Console.WriteLine($"Saved Excel file at: {filePath}");
+            Console.WriteLine($"Accessible via: {fileUrl}");
 
-    return Ok(new { downloadUrl = fileUrl });
-}
-
-
-
+            return Ok(new { downloadUrl = fileUrl });
+        }
     }
 }
