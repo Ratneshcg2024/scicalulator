@@ -16,11 +16,12 @@ namespace SCIMetricAPI.Services.Implementations
 
         public async Task<double?> GetCarbonIntensityByCountryNameAsync(string countryName)
         {
-            var emission = await _context.CountryGridEmissions
+            var emission = await _context.CountryGridEmissions.AsNoTracking()
                 .Where(e => e.CountryName.ToLower() == countryName.ToLower())
                 .FirstOrDefaultAsync();
 
             return emission?.carbonIntensity != null ? (double?)emission.carbonIntensity : null;
         }
+
     }
 }

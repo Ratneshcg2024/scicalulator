@@ -17,6 +17,6 @@ public class CountryGridEmissionController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CountryEmission>>> GetCountryemission()
     {
-        return await _context.CountryGridEmissions.ToListAsync();
+        return await _context.CountryGridEmissions.AsNoTracking().ToListAsync();
     }
 }
