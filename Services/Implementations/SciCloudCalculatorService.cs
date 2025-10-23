@@ -33,7 +33,27 @@ public class SciCloudCalculatorService : ISciCloudCalculatorService
             throw new ArgumentException("Invalid or missing instance data.");
 
         decimal totalE = 0, totalM = 0, totalO = 0;
-        double duration = request.Instances.First().Duration;
+        //CR001: adding duration unit handling
+        //double duration = request.Instances.First().Duration;
+        string durationUnit = request.Instances.First().DurationUnit?.ToLower();
+        double rawDuration = request.Instances.First().Duration;
+        double duration;
+
+        switch (durationUnit)
+        {
+            case "hours":
+                duration = rawDuration;
+                break;
+            case "seconds":
+                duration = rawDuration / 3600.0;
+                break;
+            case "minutes":
+            default:
+                duration = rawDuration / 60.0;
+                break;
+        }
+        Console.WriteLine($"Duration in hours (converted from {durationUnit}): {duration}");
+
         int instancecount = request.Instances.Count;
         Console.WriteLine($"instance count:{instancecount}");
 
@@ -88,9 +108,15 @@ public class SciCloudCalculatorService : ISciCloudCalculatorService
 
             decimal cpuEnergy = (decimal)(tdp * tdpCoeff);
             Console.WriteLine($"cpuEnergy for instance {instanceIndex}: {cpuEnergy}");
+//CR009 : calculating vcpu_utilized before using it
+            decimal PCPUraw = cpuEnergy * (decimal)(instanceInput.Duration * 3600) / 3600000;
+            Console.WriteLine($"Pcpu raw for instance {instanceIndex}: {PCPUraw}");
 
-            decimal Pcpu = cpuEnergy * (decimal)(instanceInput.Duration * 3600) / 3600000;
-            Console.WriteLine($"Pcpu for instance {instanceIndex}: {Pcpu}");
+            double vcpu_utilized = cpuCores / instanceInput.CPUCoresAllocated;
+            Console.WriteLine($"Vcpu utilized:{vcpu_utilized}");
+            decimal vcpu_ratio = (decimal)(vcpu_utilized / cpuCores);   //CR009: fixing vcpu_ratio calculation
+            decimal Pcpu = PCPUraw * vcpu_ratio;
+             Console.WriteLine($"Pcpu for instance {instanceIndex}: {Pcpu}");
 
             Console.WriteLine($"Memorytype:{instanceInput.memoryUnit}");
             double memoryUsed = instanceInput.memoryUnit.ToLower() == "percent"
@@ -114,11 +140,12 @@ public class SciCloudCalculatorService : ISciCloudCalculatorService
             decimal Pall = Pcpu + Pmemory + Pstorage;
             Console.WriteLine($"storageVolumeGB:{storageVolumeGB}, durationDecimal:{durationDecimal}, Pcpu:{Pcpu}, cpuEnergy:{cpuEnergy}, Pmemory:{Pmemory}, Pstorage:{Pstorage:F10}, Pall:{Pall}");
 
-            double vcpu_utilized = cpuCores / instanceInput.CPUCoresAllocated;
-            Console.WriteLine($"Vcpu utilized:{vcpu_utilized}");
-
-            decimal vcpu_ratio = (decimal)(vcpu_utilized / cpuCores);
-            decimal E = Pall * vcpu_ratio;
+            // double vcpu_utilized = cpuCores / instanceInput.CPUCoresAllocated;
+            // Console.WriteLine($"Vcpu utilized:{vcpu_utilized}");
+            //Cr009: fixing vcpu_ratio calculation
+            // decimal vcpu_ratio = (decimal)(vcpu_utilized / cpuCores);
+            // decimal E = Pall * vcpu_ratio;
+            decimal E = Pall;
             Console.WriteLine($"E for instance {instanceIndex}:{E}, vcpu_ratio:{vcpu_ratio}");
 
             decimal O = E * (decimal)I;

@@ -14,6 +14,7 @@ namespace SCIMetricAPI.Models
         public int tier { get; set; }     
         public double CPUUtilization { get; set; }
         public double memoryUtilization { get; set; }
+        public string DurationUnit { get; set; } //added duration unit
         public double Duration { get; set; }
         public double CPUCoresAllocated { get; set; }
         public double StorageVolumeGB { get; set; }
