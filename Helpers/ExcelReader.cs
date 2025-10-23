@@ -81,7 +81,8 @@ namespace SCIMetricAPI.Helpers
                         VcpuUsed = row.Cell(9).GetValue<int>(),
                         RamCapacityGB = row.Cell(10).GetValue<double>(),
                         region = row.Cell(11).GetString(),
-                        duration = row.Cell(12).GetValue<int>()
+                        duration_unit=row.Cell(12).GetString(), // Assuming this is the unit, adjust as necessary
+                        duration = row.Cell(13).GetValue<int>()
                     };
 
                     result.Add(model);

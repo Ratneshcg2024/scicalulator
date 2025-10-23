@@ -13,6 +13,7 @@ namespace SCIMetricAPI.Models
         public int VcpuUsed { get; set; }
         public double RamCapacityGB { get; set; }
         public string region { get; set; }
+        public string duration_unit { get; set; }
         public int duration { get; set; }
     }
 

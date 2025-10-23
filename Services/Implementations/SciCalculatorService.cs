@@ -30,9 +30,27 @@ namespace SCIMetricAPI.Services
         public SciResultModel CalculateSCI(SciExcelModel model)
         {
             Console.WriteLine("Received Excel Data:");
-            Console.WriteLine($"AppName: {model.AppName}, Processor: {model.ProcessorName}, CPU Util: {model.CpuUtilization}, Mem Util: {model.MemoryUtilization}, Storage: {model.StorageType}, StorageUsedGB: {model.StorageUsedGB}, TotalVcpu: {model.TotalVcpu}, VcpuUsed: {model.VcpuUsed}, RAM: {model.RamCapacityGB}, Country: {model.region}, Duration: {model.duration} min");
+            // Console.WriteLine($"AppName: {model.AppName}, Processor: {model.ProcessorName}, CPU Util: {model.CpuUtilization}, Mem Util: {model.MemoryUtilization}, Storage: {model.StorageType}, StorageUsedGB: {model.StorageUsedGB}, TotalVcpu: {model.TotalVcpu}, VcpuUsed: {model.VcpuUsed}, RAM: {model.RamCapacityGB}, Country: {model.region}, Duration: {model.duration} min");
 
-            double durationHours = model.duration / 60.0;
+            // double durationHours = model.duration / 60.0;
+            //CR001: adding duration unit handling
+            Console.WriteLine($"AppName: {model.AppName}, Processor: {model.ProcessorName}, CPU Util: {model.CpuUtilization}, Mem Util: {model.MemoryUtilization}, Storage: {model.StorageType}, StorageUsedGB: {model.StorageUsedGB}, TotalVcpu: {model.TotalVcpu}, VcpuUsed: {model.VcpuUsed}, RAM: {model.RamCapacityGB}, Country: {model.region}, Duration: {model.duration} {model.duration_unit}");
+
+            double durationHours;
+            switch (model.duration_unit?.ToLower())
+            {
+                case "hours":
+                    durationHours = model.duration;
+                    break;
+                case "seconds":
+                    durationHours = model.duration / 3600.0;
+                    break;
+                case "minutes":
+                default:
+                    durationHours = model.duration / 60.0;
+                    break;
+            }
+            Console.WriteLine($"Duration in hours (converted from {model.duration_unit}): {durationHours}");
             Console.WriteLine($"Duration in hours: {durationHours}");
 
             double gridEmissionFactor = _gridEmissionRepository
@@ -45,7 +63,9 @@ namespace SCIMetricAPI.Services
             double tdp = tdpFromDb?? _settings.DefaultTDP;
 
             decimal cpuEnergy = (decimal)(tdp * tdpCoeff);
-            decimal Pcpu = (cpuEnergy * (decimal)(durationHours * 3600)) / 3600000;
+            decimal PCPUraw = (cpuEnergy * (decimal)(durationHours * 3600)) / 3600000;
+            decimal vcpu_ratio = (decimal)model.VcpuUsed / model.TotalVcpu;
+            decimal Pcpu = PCPUraw * vcpu_ratio;
             Console.WriteLine($"TDP: {tdp}, TDP Coeff: {tdpCoeff}, CPU Energy (W): {cpuEnergy}, Pcpu (kWh): {Pcpu}");
 
 
@@ -71,8 +91,10 @@ namespace SCIMetricAPI.Services
             Console.WriteLine($"Storage Type: {model.StorageType}, Storage Used: {model.StorageUsedGB} GB, Pstorage (kWh): {Pstorage}");
 
             decimal Pall = Pcpu + Pmemory + Pstorage;
-            decimal vcpu_ratio = (decimal)model.VcpuUsed / model.TotalVcpu;
-            decimal E = Pall * vcpu_ratio;
+            // decimal vcpu_ratio = (decimal)model.VcpuUsed / model.TotalVcpu;
+            // decimal E = Pall * vcpu_ratio;
+            decimal E = Pall;
+             Console.WriteLine($"Pall: {Pall}, vCPU Ratio: {vcpu_ratio}, Operational Energy (E): {E}");
             decimal O = E * (decimal)gridEmissionFactor;
             Console.WriteLine($"Pall: {Pall}, vCPU Ratio: {vcpu_ratio}, Operational Energy (E): {E}, Operational Emissions (O): {O}");
 
