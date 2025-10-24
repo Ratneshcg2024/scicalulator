@@ -44,6 +44,9 @@ public class SciCloudCalculatorService : ISciCloudCalculatorService
             case "hours":
                 duration = rawDuration;
                 break;
+             case "days":
+                duration = rawDuration * 24;
+                break;
             case "seconds":
                 duration = rawDuration / 3600.0;
                 break;
@@ -95,6 +98,7 @@ public class SciCloudCalculatorService : ISciCloudCalculatorService
             var gridEmission = gridEmissions[instanceInput.RegionId];
             double I = gridEmission.CO2e;
             gridemm = I;
+            Console.WriteLine($"instanceInput results: memoryUtilization={instanceInput.memoryUtilization},memoryUnit={instanceInput.memoryUnit}, Duration={instanceInput.Duration}, DurationUnit={instanceInput.DurationUnit}");
 
             Console.WriteLine($"Calculating SCI for instance {instanceIndex} (InstanceTypeId: {instanceInput.InstanceTypeId}, RegionId: {instanceInput.RegionId})");
 
@@ -108,8 +112,10 @@ public class SciCloudCalculatorService : ISciCloudCalculatorService
 
             decimal cpuEnergy = (decimal)(tdp * tdpCoeff);
             Console.WriteLine($"cpuEnergy for instance {instanceIndex}: {cpuEnergy}");
-//CR009 : calculating vcpu_utilized before using it
-            decimal PCPUraw = cpuEnergy * (decimal)(instanceInput.Duration * 3600) / 3600000;
+            //CR009 : calculating vcpu_utilized before using it
+            Console.WriteLine($"Duration from instanceInput for instance {instanceIndex}: {instanceInput.Duration} {instanceInput.DurationUnit}");
+            //decimal PCPUraw = cpuEnergy * (decimal)(instanceInput.Duration * 3600) / 3600000;
+            decimal PCPUraw = cpuEnergy * (decimal)(duration * 3600) / 3600000;
             Console.WriteLine($"Pcpu raw for instance {instanceIndex}: {PCPUraw}");
 
             double vcpu_utilized = cpuCores / instanceInput.CPUCoresAllocated;
@@ -125,11 +131,13 @@ public class SciCloudCalculatorService : ISciCloudCalculatorService
 
             Console.WriteLine($"converted Memoryused :{memoryUsed} GB from {(instanceInput.memoryUnit.ToLower() == "percent" ? "percentage" : "MB")}");
 
-            decimal Pmemory = (decimal)(memoryUsed * 0.000392 * instanceInput.Duration);
+            //decimal Pmemory = (decimal)(memoryUsed * 0.000392 * instanceInput.Duration);
+            decimal Pmemory = (decimal)(memoryUsed * 0.000392 * duration);
             decimal storageVolumeGB = (decimal)instanceInput.StorageVolumeGB;
             decimal durationDecimal = (decimal)instanceInput.Duration;
 
-            decimal Pstorage = storageVolumeGB * durationDecimal *
+           // decimal Pstorage = storageVolumeGB * durationDecimal *
+            decimal Pstorage = storageVolumeGB * (decimal)duration *
                 (storageinfo.ToLower() switch
                 {
                     "hdd" => 0.00000065m,
@@ -157,7 +165,8 @@ public class SciCloudCalculatorService : ISciCloudCalculatorService
 
             Console.WriteLine($"TE for instance {instanceIndex} ={TE}");
 
-            decimal M = TE * 1000 * ((decimal)(instanceInput.Duration * 3600) / (6 * 365 * 24 * 3600)) * vcpu_ratio;
+            //decimal M = TE * 1000 * ((decimal)(instanceInput.Duration * 3600) / (6 * 365 * 24 * 3600)) * vcpu_ratio;
+            decimal M = TE * 1000 * ((decimal)(duration * 3600) / (6 * 365 * 24 * 3600)) * vcpu_ratio;
             Console.WriteLine($"M for instance {instanceIndex}={M}");
 
             decimal instanceSCI = (O + M) / (functionalUnit * (decimal)instanceInput.Duration);
