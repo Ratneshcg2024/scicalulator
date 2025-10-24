@@ -42,6 +42,10 @@ namespace SCIMetricAPI.Services
                 case "hours":
                     durationHours = model.duration;
                     break;
+            //added days 
+                case "days":
+                    durationHours = model.duration * 24;
+                    break;
                 case "seconds":
                     durationHours = model.duration / 3600.0;
                     break;

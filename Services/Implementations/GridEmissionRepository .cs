@@ -20,7 +20,7 @@ namespace SCIMetricAPI.Services.Implementations
                 .Where(e => e.CountryName.ToLower() == countryName.ToLower())
                 .FirstOrDefaultAsync();
 
-            return emission?.carbonIntensity != null ? (double?)emission.carbonIntensity : null;
+            return emission?.carbonIntensity != null ? (double?)emission.carbonIntensity : 415.755; // Default value if not found
         }
 
     }
