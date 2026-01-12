@@ -12,8 +12,8 @@ namespace SCIMetricAPI.Data
         public DbSet<GridEmission> GridEmissions { get; set; }
         public DbSet<CountryEmission> CountryGridEmissions { get; set; }
         public DbSet<HardwareVendor> HardwareVendor { get; set; }
-
         public DbSet<TdpData> TdpData { get; set; }
+        public DbSet<Recommendations> Recommendations { get; set; }
        // public DbSet<SCIInstanceRecord> SCIInstanceRecords { get; set; }
 
         //public DbSet<UserInput> UserInputs { get; set; }

@@ -10,5 +10,8 @@ namespace SCIMetricAPI.Models
         public decimal SCIvalue { get; set; }
         public string CountryUsed { get; set; }
         public double GridEmissionFactorUsed { get; set; }
+        public int TotalVcpu { get; set; }
+public int VcpuUsed { get; set; }
+public double RamCapacityGB { get; set; }
     }
 }

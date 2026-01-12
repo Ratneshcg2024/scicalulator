@@ -19,5 +19,7 @@ namespace SCIMetricAPI.Models
         public double CPUCoresAllocated { get; set; }
         public double StorageVolumeGB { get; set; }
         public string memoryUnit { get; set; }
+        public string appCriticality { get; set; }
+
     }
 }

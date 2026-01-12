@@ -4,7 +4,10 @@ namespace SCIMetricAPI.Models
     {
         public int Id { get; set; }
         public int CloudProviderId { get; set; }
-        public CloudProvider CloudProvider { get; set; }
+       // public CloudProvider CloudProvider { get; set; }
+        //added instancefamily and instance cost
+       public string? InstanceFamily { get; set; }
+        public decimal? InstanceCost { get; set; }
         public string InstanceClass { get; set; }
         public int CPUCoresAvailable { get; set; }
         public int MemoryAvailable { get; set; }
